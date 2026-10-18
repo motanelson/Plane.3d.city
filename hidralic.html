@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HydroStatic: Hydraulic Engineering Challenge</title>
+<style>
+  :root {
+    --bg-dark: #12181f;
+    --panel-bg: #1c2430;
+    --accent: #0ea5e9;
+    --accent-glow: rgba(14, 165, 233, 0.4);
+    --warn: #eab308;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --fluid: #0284c7;
+    --fluid-flow: #38bdf8;
+    --metal: #64748b;
+    --metal-dark: #334155;
+  }
+
+  * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  body { background: var(--bg-dark); color: #f8fafc; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 10px; }
+
+  header { text-align: center; margin-bottom: 10px; }
+  header h1 { font-size: 1.6rem; color: #f8fafc; letter-spacing: 1px; }
+  header span { color: var(--accent); font-weight: bold; }
+
+  #game-container {
+    display: flex;
+    gap: 15px;
+    background: var(--panel-bg);
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    border: 1px solid #334155;
+    max-width: 1000px;
+    width: 100%;
+  }
+
+  canvas {
+    background: #0b1118;
+    border-radius: 8px;
+    border: 1px solid #243042;
+  }
+
+  #dashboard {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .panel-box {
+    background: #151c26;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #2a374a;
+  }
+
+  .panel-box h3 {
+    font-size: 0.85rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .slider-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+  }
+  .slider-group:last-child { margin-bottom: 0; }
+  .slider-group label {
+    font-size: 0.8rem;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    color: #94a3b8;
+  }
+  .slider-group label span { color: #f8fafc; font-weight: bold; }
+  input[type="range"] {
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .readout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    font-size: 0.8rem;
+  }
+  .readout-item {
+    background: #0f151d;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border-left: 3px solid var(--accent);
+  }
+  .readout-item span { display: block; font-size: 0.7rem; color: #64748b; }
+  .readout-item strong { font-size: 0.95rem; color: #e2e8f0; }
+
+  #btn-pump {
+    background: linear-gradient(180deg, #0284c7, #0369a1);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+    transition: transform 0.05s, background 0.2s;
+  }
+  #btn-pump:active { transform: translateY(2px); background: #0284c7; }
+  #btn-pump:disabled { background: #334155; color: #64748b; cursor: not-allowed; box-shadow: none; }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+  }
+  .btn-sec {
+    flex: 1;
+    background: #334155;
+    color: #f8fafc;
+    border: none;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .btn-sec:hover { background: #475569; }
+
+  #objective-box {
+    border-left: 4px solid var(--accent);
+    font-size: 0.85rem;
+    line-height: 1.35;
+  }
+
+  .status-tag {
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+  }
+  .status-ready { background: #064e3b; color: #34d399; }
+  .status-warn { background: #713f12; color: #fde047; }
+  .status-err { background: #7f1d1d; color: #fca5a5; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>HYDRO<span>STATIC</span></h1>
+  <p style="font-size: 0.8rem; color: #64748b;">Fluid Mechanics & Cylinder Configuration Simulator</p>
+</header>
+
+<div id="game-container">
+  <canvas id="simCanvas" width="600" height="520"></canvas>
+
+  <div id="dashboard">
+    <!-- Objective Card -->
+    <div class="panel-box" id="objective-box">
+      <h3>Mission <span id="level-title">Stage 1</span></h3>
+      <p id="level-desc" style="color: #cbd5e1; margin-bottom: 6px;">Config cylinders to lift load.</p>
+      <div style="font-size:0.75rem; color:#94a3b8;">
+        Target Height: <b id="target-h-txt" style="color:#38bdf8;">0 cm</b> | Tol: <b id="target-tol-txt">±0 cm</b>
+      </div>
+    </div>
+
+    <!-- Cylinder Hardware Configuration -->
+    <div class="panel-box">
+      <h3>Hardware Geometry</h3>
+      
+      <div class="slider-group">
+        <label>Input Bore ($D_1$): <span id="val-d1">40 mm</span></label>
+        <input type="range" id="input-d1" min="10" max="100" step="2" value="40">
+      </div>
+
+      <div class="slider-group">
+        <label>Output Bore ($D_2$): <span id="val-d2">80 mm</span></label>
+        <input type="range" id="input-d2" min="20" max="250" step="5" value="80">
+      </div>
+    </div>
+
+    <!-- Live Telemetry -->
+    <div class="panel-box">
+      <h3>Hydraulic Telemetry</h3>
+      <div class="readout">
+        <div class="readout-item">
+          <span>Mechanical Advantage</span>
+          <strong id="readout-ma">4.00x</strong>
+        </div>
+        <div class="readout-item">
+          <span>System Pressure</span>
+          <strong id="readout-press">0.0 bar</strong>
+        </div>
+        <div class="readout-item">
+          <span>Human Effort Req.</span>
+          <strong id="readout-force">0 N</strong>
+        </div>
+        <div class="readout-item">
+          <span>Pumps Taken</span>
+          <strong id="readout-pumps">0 / 12</strong>
+        </div>
+      </div>
+      <div id="status-bar" style="margin-top:8px; font-size:0.75rem; text-align:center;"></div>
+    </div>
+
+    <!-- Controls -->
+    <button id="btn-pump">STROKE PUMP [SPACE]</button>
+    
+    <div class="btn-row">
+      <button class="btn-sec" id="btn-vent">Vent Fluid (Reset)</button>
+      <button class="btn-sec" id="btn-next" style="display:none; background:#16a34a;">Next Stage &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * Audio Synthesizer (Zero external dependencies)
+ */
+class SoundEngine {
+  constructor() {
+    this.ctx = null;
+  }
+  init() {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  }
+  pump() {
+    this.init();
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.15);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(400, this.ctx.currentTime);
+
+    gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.2);
+
+    // Hydraulic squirt noise
+    this.hiss(0.12, 800, 0.1);
+  }
+  vent() {
+    this.init();
+    this.hiss(0.4, 1200, 0.2);
+  }
+  clank() {
+    this.init();
+    this.hiss(0.05, 3000, 0.3);
+  }
+  hiss(duration, cutoff, volume) {
+    const bufferSize = this.ctx.sampleRate * duration;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = cutoff;
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(volume, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+    noise.start();
+  }
+}
+
+const audio = new SoundEngine();
+
+/**
+ * Game Levels & Physics Logic
+ */
+const LEVELS = [
+  {
+    title: "1. The Workshop Lift",
+    desc: "Lift the compact generator (350 kg) to roughly 40 cm. Max operator push force is 350 N.",
+    loadKg: 350,
+    targetHeightCm: 40,
+    toleranceCm: 5,
+    maxPumps: 15,
+    maxHumanForceN: 350,
+    maxPressureBar: 200
+  },
+  {
+    title: "2. The Forklift Axle",
+    desc: "Heavy industrial crate (1,200 kg). Keep operator input under 250 N. Watch max safe pressure (180 Bar)!",
+    loadKg: 1200,
+    targetHeightCm: 25,
+    toleranceCm: 4,
+    maxPumps: 18,
+    maxHumanForceN: 250,
+    maxPressureBar: 180
+  },
+  {
+    title: "3. Rapid Jacking",
+    desc: "Emergency ramp lift (200 kg). Must hit 50 cm in 6 strokes or fewer. You need speed!",
+    loadKg: 200,
+    targetHeightCm: 50,
+    toleranceCm: 6,
+    maxPumps: 6,
+    maxHumanForceN: 600,
+    maxPressureBar: 250
+  },
+  {
+    title: "4. Precision Docking",
+    desc: "Fit delicate equipment (500 kg) into the assembly slot at 30 cm ± 1.5 cm. Do not overshoot!",
+    loadKg: 500,
+    targetHeightCm: 30,
+    toleranceCm: 1.5,
+    maxPumps: 20,
+    maxHumanForceN: 300,
+    maxPressureBar: 200
+  },
+  {
+    title: "5. Monster Press",
+    desc: "Extreme weight (3,500 kg). Maximize force amplification without exceeding 220 bar.",
+    loadKg: 3500,
+    targetHeightCm: 18,
+    toleranceCm: 3,
+    maxPumps: 22,
+    maxHumanForceN: 320,
+    maxPressureBar: 220
+  }
+];
+
+let curLevelIdx = 0;
+let pumpsTaken = 0;
+let outputHeightCm = 0;
+let pumpStrokeProgress = 0; // for animating the pump handle
+let fluidFlowPulse = 0;
+
+// Hardware Parameters
+let d1_mm = 40; // Input Cylinder Diameter
+let d2_mm = 80; // Output Cylinder Diameter
+const STROKE_LEN_CM = 15; // Stroke length of input hand pump
+
+// Canvas
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+
+// DOM Elements
+const inD1 = document.getElementById('input-d1');
+const inD2 = document.getElementById('input-d2');
+const valD1 = document.getElementById('val-d1');
+const valD2 = document.getElementById('val-d2');
+const btnPump = document.getElementById('btn-pump');
+const btnVent = document.getElementById('btn-vent');
+const btnNext = document.getElementById('btn-next');
+const readoutMA = document.getElementById('readout-ma');
+const readoutPress = document.getElementById('readout-press');
+const readoutForce = document.getElementById('readout-force');
+const readoutPumps = document.getElementById('readout-pumps');
+const statusBar = document.getElementById('status-bar');
+const lvlTitle = document.getElementById('level-title');
+const lvlDesc = document.getElementById('level-desc');
+const targetHTxt = document.getElementById('target-h-txt');
+const targetTolTxt = document.getElementById('target-tol-txt');
+
+function loadLevel(idx) {
+  curLevelIdx = idx;
+  const lvl = LEVELS[curLevelIdx];
+  pumpsTaken = 0;
+  outputHeightCm = 0;
+  btnNext.style.display = 'none';
+  btnPump.disabled = false;
+
+  lvlTitle.textContent = lvl.title;
+  lvlDesc.textContent = lvl.desc;
+  targetHTxt.textContent = `${lvl.targetHeightCm} cm`;
+  targetTolTxt.textContent = `±${lvl.toleranceCm} cm`;
+
+  updateTelemetry();
+}
+
+function updateTelemetry() {
+  const lvl = LEVELS[curLevelIdx];
+
+  // Hydraulic Math
+  // Area = pi * (d / 2)^2
+  const a1 = Math.PI * Math.pow(d1_mm / 2, 2);
+  const a2 = Math.PI * Math.pow(d2_mm / 2, 2);
+  const ratio = a2 / a1; // Area multiplication factor
+
+  const loadWeightN = lvl.loadKg * 9.81;
+  const humanForceNeededN = loadWeightN / ratio;
+  
+  // Pressure P = F / A (N / mm^2) -> 1 N/mm^2 = 10 Bar
+  const pressureBar = (loadWeightN / a2) * 10;
+
+  // Display Readouts
+  valD1.textContent = `${d1_mm} mm`;
+  valD2.textContent = `${d2_mm} mm`;
+  readoutMA.textContent = `${ratio.toFixed(2)}x`;
+  readoutPress.textContent = `${pressureBar.toFixed(1)} bar`;
+  readoutForce.textContent = `${Math.round(humanForceNeededN)} N`;
+  readoutPumps.textContent = `${pumpsTaken} / ${lvl.maxPumps}`;
+
+  // Diagnostic warnings
+  let statusHTML = '';
+  let canPump = true;
+
+  if (humanForceNeededN > lvl.maxHumanForceN) {
+    statusHTML += `<span class="status-tag status-err">FORCE TOO HIGH (&gt; ${lvl.maxHumanForceN}N)</span> `;
+    canPump = false;
+  }
+  if (pressureBar > lvl.maxPressureBar) {
+    statusHTML += `<span class="status-tag status-err">PRESSURE BLOWOUT (&gt; ${lvl.maxPressureBar} bar)</span> `;
+    canPump = false;
+  }
+  if (pumpsTaken >= lvl.maxPumps && !checkSuccess()) {
+    statusHTML += `<span class="status-tag status-err">OUT OF STROKES</span> `;
+    canPump = false;
+  }
+
+  if (canPump && !checkSuccess()) {
+    statusHTML = `<span class="status-tag status-ready">SYSTEM READY</span>`;
+  }
+
+  // Check victory condition
+  if (checkSuccess()) {
+    statusHTML = `<span class="status-tag status-ready">TARGET REACHED! MISSION SUCCESS</span>`;
+    btnNext.style.display = 'block';
+  }
+
+  statusBar.innerHTML = statusHTML;
+  btnPump.disabled = !canPump || checkSuccess();
+}
+
+function checkSuccess() {
+  const lvl = LEVELS[curLevelIdx];
+  const diff = Math.abs(outputHeightCm - lvl.targetHeightCm);
+  return diff <= lvl.toleranceCm;
+}
+
+function pumpStroke() {
+  const lvl = LEVELS[curLevelIdx];
+  const a1 = Math.PI * Math.pow(d1_mm / 2, 2);
+  const a2 = Math.PI * Math.pow(d2_mm / 2, 2);
+  const ratio = a2 / a1;
+
+  // Displacement: V1 = V2 => h2 = h1 / ratio
+  const outputStepCm = STROKE_LEN_CM / ratio;
+  
+  outputHeightCm += outputStepCm;
+  pumpsTaken++;
+  pumpStrokeProgress = 1.0;
+  fluidFlowPulse = 1.0;
+
+  audio.pump();
+
+  if (outputHeightCm > lvl.targetHeightCm + lvl.toleranceCm * 2) {
+    audio.clank(); // Overshot hard
+  }
+
+  updateTelemetry();
+}
+
+function ventSystem() {
+  outputHeightCm = 0;
+  pumpsTaken = 0;
+  audio.vent();
+  updateTelemetry();
+}
+
+// Event Listeners
+inD1.addEventListener('input', (e) => {
+  d1_mm = parseFloat(e.target.value);
+  updateTelemetry();
+});
+
+inD2.addEventListener('input', (e) => {
+  d2_mm = parseFloat(e.target.value);
+  updateTelemetry();
+});
+
+btnPump.addEventListener('click', pumpStroke);
+btnVent.addEventListener('click', ventSystem);
+btnNext.addEventListener('click', () => {
+  if (curLevelIdx < LEVELS.length - 1) {
+    loadLevel(curLevelIdx + 1);
+  } else {
+    alert("Congratulations! Master Hydraulics Engineer certification achieved!");
+    loadLevel(0);
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !btnPump.disabled) {
+    pumpStroke();
+    e.preventDefault();
+  }
+});
+
+/**
+ * Rendering & Visuals
+ */
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const lvl = LEVELS[curLevelIdx];
+  
+  // Floor and grid
+  ctx.strokeStyle = "#172332";
+  ctx.lineWidth = 1;
+  for (let x = 0; x < canvas.width; x += 30) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y < canvas.height; y += 30) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+
+  // Baseline floor
+  const floorY = 460;
+  ctx.fillStyle = '#222f3e';
+  ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+  ctx.strokeStyle = '#334155';
+  ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(canvas.width, floorY); ctx.stroke();
+
+  // === 1. DRAW INPUT CYLINDER (PUMP) ===
+  const inCenterX = 130;
+  const inWidth = (d1_mm / 100) * 80 + 20; // scale visually
+  const inHeight = 180;
+  const inBaseY = floorY;
+
+  // Cylinder chamber interior (fluid)
+  const inPistonTravel = pumpStrokeProgress * 25; 
+  const inPistonY = inBaseY - inHeight + 20 + inPistonTravel;
+
+  ctx.fillStyle = '#0284c7';
+  ctx.fillRect(inCenterX - inWidth/2, inPistonY, inWidth, inBaseY - inPistonY);
+
+  // Cylinder casing
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(inCenterX - inWidth/2, inBaseY - inHeight, inWidth, inHeight);
+
+  // Input Piston & Rod
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillRect(inCenterX - inWidth/2 + 2, inPistonY, inWidth - 4, 12);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillRect(inCenterX - 6, inPistonY - 60, 12, 60);
+
+  // Pump Handle Lever
+  ctx.save();
+  ctx.translate(inCenterX, inPistonY - 60);
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.rotate(-0.2 - pumpStrokeProgress * 0.35);
+  ctx.beginPath();
+  ctx.moveTo(-60, 0);
+  ctx.lineTo(35, 0);
+  ctx.stroke();
+  // Handle grip
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(-70, -6, 20, 12);
+  ctx.restore();
+
+  // Label
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "12px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(`INPUT: Ø${d1_mm}mm`, inCenterX, inBaseY + 25);
+
+  // === 2. HYDRAULIC CONDUIT (PIPE) ===
+  const outCenterX = 440;
+  const pipeY = floorY - 15;
+
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 14;
+  ctx.beginPath();
+  ctx.moveTo(inCenterX, pipeY);
+  ctx.lineTo(outCenterX, pipeY);
+  ctx.stroke();
+
+  // Fluid inside pipe
+  ctx.strokeStyle = fluidFlowPulse > 0.05 ? '#38bdf8' : '#0284c7';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(inCenterX, pipeY);
+  ctx.lineTo(outCenterX, pipeY);
+  ctx.stroke();
+
+  // Check Valve Symbol
+  ctx.fillStyle = '#38bdf8';
+  ctx.beginPath();
+  ctx.arc(285, pipeY, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.moveTo(282, pipeY - 5);
+  ctx.lineTo(289, pipeY);
+  ctx.lineTo(282, pipeY + 5);
+  ctx.fill();
+
+  // === 3. DRAW OUTPUT CYLINDER (RAM) ===
+  const outWidth = (d2_mm / 250) * 150 + 40; // scale visually
+  const outHeight = 220;
+  const outBaseY = floorY;
+
+  // Pixels per cm of lift
+  const pxPerCm = 3.6;
+  const outLiftPx = Math.min(outputHeightCm * pxPerCm, 200);
+  const outPistonY = outBaseY - 30 - outLiftPx;
+
+  // Cylinder chamber interior (fluid)
+  ctx.fillStyle = '#0284c7';
+  ctx.fillRect(outCenterX - outWidth/2, outPistonY, outWidth, outBaseY - outPistonY);
+
+  // Cylinder casing
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(outCenterX - outWidth/2, outBaseY - outHeight, outWidth, outHeight);
+
+  // Output Piston Head & Large Ram
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillRect(outCenterX - outWidth/2 + 3, outPistonY, outWidth - 6, 16);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(outCenterX - outWidth/4, outPistonY - 60, outWidth/2, 60);
+
+  // Output Platform
+  const platWidth = Math.max(outWidth + 30, 110);
+  const platY = outPistonY - 70;
+  ctx.fillStyle = '#475569';
+  ctx.fillRect(outCenterX - platWidth/2, platY, platWidth, 12);
+  // Hazard stripes on platform
+  ctx.fillStyle = '#eab308';
+  for(let x = outCenterX - platWidth/2 + 5; x < outCenterX + platWidth/2 - 10; x += 18) {
+    ctx.fillRect(x, platY + 2, 8, 8);
+  }
+
+  // LOAD WEIGHT
+  const loadBoxSize = 55;
+  const loadY = platY - loadBoxSize;
+  ctx.fillStyle = '#334155';
+  ctx.fillRect(outCenterX - loadBoxSize/2, loadY, loadBoxSize, loadBoxSize);
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(outCenterX - loadBoxSize/2, loadY, loadBoxSize, loadBoxSize);
+  
+  // Weight text
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = "bold 11px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(`${lvl.loadKg} kg`, outCenterX, loadY + 32);
+
+  // Label
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "12px monospace";
+  ctx.fillText(`OUTPUT: Ø${d2_mm}mm`, outCenterX, outBaseY + 25);
+
+  // === 4. TARGET HEIGHT INDICATOR & TOLERANCE BAND ===
+  const initialPlatY = (outBaseY - 30) - 70;
+  const targetPlatY = initialPlatY - (lvl.targetHeightCm * pxPerCm);
+  const tolPx = lvl.toleranceCm * pxPerCm;
+
+  // Tolerance Band
+  ctx.fillStyle = 'rgba(14, 165, 233, 0.15)';
+  ctx.fillRect(outCenterX + platWidth/2 + 10, targetPlatY - tolPx, 60, tolPx * 2);
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+  ctx.strokeRect(outCenterX + platWidth/2 + 10, targetPlatY - tolPx, 60, tolPx * 2);
+
+  // Target Guideline
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(outCenterX - platWidth/2 - 20, targetPlatY);
+  ctx.lineTo(outCenterX + platWidth/2 + 75, targetPlatY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(`TARGET`, outCenterX + platWidth/2 + 15, targetPlatY - tolPx - 4);
+
+  // Current Height Marker Arrow
+  ctx.fillStyle = '#f8fafc';
+  ctx.beginPath();
+  ctx.moveTo(outCenterX + platWidth/2 + 5, platY + 6);
+  ctx.lineTo(outCenterX + platWidth/2 - 3, platY + 1);
+  ctx.lineTo(outCenterX + platWidth/2 - 3, platY + 11);
+  ctx.fill();
+
+  ctx.font = "bold 12px monospace";
+  ctx.fillText(`${outputHeightCm.toFixed(1)} cm`, outCenterX + platWidth/2 + 75, platY + 10);
+
+  // Animation Step decays
+  pumpStrokeProgress *= 0.85;
+  fluidFlowPulse *= 0.90;
+
+  requestAnimationFrame(draw);
+}
+
+// Startup
+loadLevel(0);
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
